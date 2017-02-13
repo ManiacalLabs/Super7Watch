@@ -42,10 +42,10 @@ time_t getGPSTime()
         gps_time.Hour = hr;
         gps_time.Minute = min;
         gps_time.Second = sec;
+        Serial.println("Set Time");
         return makeTime(gps_time) + TZ_OFFSET;
     }
 
-    Serial.println("NO FIX");
     return 0; // return 0 if unable to get the time
 }
 
@@ -66,24 +66,11 @@ void setup()
 
     delay(1000);
 
-    S7.write(CMD_BRIGHTNESS);
-    S7.write(10);
-    S7.write('\n');
-
     Timer1.initialize(1000);
     Timer1.attachInterrupt(gps_read);
 
     setSyncProvider(getGPSTime);
     setSyncInterval(10);
-}
-
-void printDigits(int digits)
-{
-  // utility for digital clock display: prints preceding colon and leading 0
-    Serial.print(":");
-    if (digits < 10)
-        Serial.print('0');
-    Serial.print(digits);
 }
 
 String zp(uint8_t val){
@@ -92,117 +79,97 @@ String zp(uint8_t val){
     return r + String(val);
 }
 
+String _pad(String s, char pad, int count){
+    if(count){
+        for(int i=0; i<count; i++) s = pad + s;
+    }
+    return s;
+}
+String left_pad(String s, char pad, int width){
+    width = width - s.length();
+    return _pad(s, pad, width);
+}
+
+String center_text(String s, char pad, int width){
+    width = (width - s.length()) / 2;
+
+    return _pad(s, pad, width);
+}
+
+inline void show_time(){
+    String t = zp(hour()) +
+               '.' + zp(minute()) +
+               '.' + zp(second());
+    String d(dayShortStr(weekday()));
+    t = " " + d + " " + t + "\n";
+    S7.print(t);
+}
+
+inline void show_epoch_time(){
+    S7.write(" ");
+    S7.print(now());
+    S7.write("\n");
+}
+
+inline void show_gps(){
+    if(GPS.fix){
+        String out;
+        if(_gps_view == 0){
+            out = String(GPS.latitudeDegrees, 8);
+            //13 because . doesn't count on the S7
+            out = left_pad(out, ' ', 13);
+        }
+        else if(_gps_view == 1){
+            out = String(GPS.longitudeDegrees, 8);
+            //13 because . doesn't count on the S7
+            out = left_pad(out, ' ', 13);
+        }
+        else if(_gps_view == 2){
+            out = ("SC" + String((int)GPS.satellites));
+            out += (" SP" + String(int(GPS.speed * 1.1508)));
+            out = center_text(out, ' ', 12);
+        }
+
+        S7.print(out + "\n");
+        Serial.println(out);
+
+        _gps_cycle++;
+        if(_gps_cycle >= GPS_CYCLES){
+            _gps_cycle = 0;
+            _gps_view++;
+            if(_gps_view >= GPS_VIEWS)
+                _gps_view = 0;
+        }
+    }
+    else{
+        S7.write("no fix\n");
+    }
+}
+
 void loop()
 {
-
     if (GPS.newNMEAreceived()) {
         if (!GPS.parse(GPS.lastNMEA()))
             return;
     }
 
+    // Reset if overflow
     if (timer > millis()) timer = millis();
 
-    if (millis() - timer > 500)
+    if (millis() - timer > LOOP_TIMEOUT)
     {
         timer = millis(); // reset the timer
 
-        Serial.print(hour());
-        printDigits(minute());
-        printDigits(second());
-        Serial.print(" ");
-        Serial.print(month());
-        Serial.print(".");
-        Serial.print(day());
-        Serial.print(".");
-        Serial.print(year());
-        Serial.println();
-
-        String t = zp(hour()) +
-                   '.' + zp(minute()) +
-                   '.' + zp(second());
-        String d(dayShortStr(weekday()));
-        S7.print(" " + d + " " + t + "\n");
-        Serial.println(d);
-
-        // S7.print(hour());
-        // S7.print('.');
-        // S7.print(minute());
-        // S7.print('.');
-        // S7.print(second());
-        // S7.print('\n');
-
-
-        Serial.print("Fix: "); Serial.print((int)GPS.fix);
-        Serial.print(" quality: "); Serial.println((int)GPS.fixquality);
-        if (GPS.fix) {
-            Serial.print("Location: ");
-            static uint8_t lat, lon;
-            static float f_lat, f_lon;
-            lat = int(GPS.latitude / 100);
-            f_lat = GPS.latitude - (lat * 100);
-            lon = int(GPS.longitude / 100);
-            f_lon = GPS.longitude - (lon * 100);
-            String s_lat;
-            if(GPS.lat == 'S')
-                s_lat += '-';
-            s_lat += String(lat); s_lat += " "; s_lat += String(f_lat, 4);
-            Serial.print(s_lat);
-            Serial.print(", ");
-            String s_lon;
-            if(GPS.lon == 'W')
-                s_lon += '-';
-            s_lon += String(lon); s_lon += " "; s_lon += String(f_lon, 4);
-            Serial.print(s_lon);
-            Serial.println("");
-
-            // Serial.print(lat); Serial.print(" "); Serial.print(f_lat, 4);
-            // Serial.print(", ");
-            // if(GPS.lon == 'W') Serial.print('-');
-            // Serial.print(lon); Serial.print(" "); Serial.print(f_lon, 4);
-            // Serial.println("");
-            Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
-            Serial.print(", ");
-            Serial.print(GPS.longitude, 4); Serial.println(GPS.lon);
-            Serial.print("Speed (knots): "); Serial.println(GPS.speed);
-            Serial.print("Angle: "); Serial.println(GPS.angle);
-            Serial.print("Altitude: "); Serial.println(GPS.altitude);
-            Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
+        switch (_mode) {
+            case MODE_TIME:
+                show_time();
+                break;
+            case MODE_GPS:
+                show_gps();
+                break;
+            case MODE_EPOCH:
+                show_epoch_time();
+                break;
         }
-
-        Serial.println("");
     }
-    // // if millis() or timer wraps around, we'll just reset it
-    // if (timer > millis()) timer = millis();
-    //
-    // // approximately every 2 seconds or so, print out the current stats
-    // if (millis() - timer > 2000) {
-    //     timer = millis(); // reset the timer
-    //     if(GPS.fix){
-    //         Serial.print("\nTime: ");
-    //         Serial.print(GPS.hour, DEC); Serial.print(':');
-    //         Serial.print(GPS.minute, DEC); Serial.print(':');
-    //         Serial.print(GPS.seconds, DEC); Serial.print('.');
-    //         Serial.println(GPS.milliseconds);
-    //         Serial.print("Date: ");
-    //         Serial.print(GPS.day, DEC); Serial.print('/');
-    //         Serial.print(GPS.month, DEC); Serial.print("/20");
-    //         Serial.println(GPS.year, DEC);
-    //         Serial.print("Fix: "); Serial.print((int)GPS.fix);
-    //         Serial.print(" quality: "); Serial.println((int)GPS.fixquality);
-    //         if (GPS.fix) {
-    //             Serial.print("Location: ");
-    //             Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
-    //             Serial.print(", ");
-    //             Serial.print(GPS.longitude, 4); Serial.println(GPS.lon);
-    //             Serial.print("Speed (knots): "); Serial.println(GPS.speed);
-    //             Serial.print("Angle: "); Serial.println(GPS.angle);
-    //             Serial.print("Altitude: "); Serial.println(GPS.altitude);
-    //             Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
-    //         }
-    //     }
-    //     else{
-    //         Serial.println("NO FIX");
-    //     }
-    //
-    // }
 }
