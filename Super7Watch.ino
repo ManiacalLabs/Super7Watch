@@ -53,8 +53,24 @@ void gps_read(){
     GPS.read();
 }
 
+void BTN_1_Press(){
+    if(_btn_1 == 0)
+        _btn_1 = millis();
+}
+
+void BTN_2_Press(){
+    if(_btn_2 == 0)
+        _btn_2 = millis();
+}
+
 void setup()
 {
+    pinMode(BTN_GROUND, OUTPUT);
+    digitalWrite(BTN_GROUND, LOW);
+
+    pinMode(BTN_1, INPUT_PULLUP);
+    pinMode(BTN_2, INPUT_PULLUP);
+
     Serial.begin(115200);
 
     S7.begin(38400);
@@ -71,6 +87,9 @@ void setup()
 
     setSyncProvider(getGPSTime);
     setSyncInterval(10);
+
+    attachInterrupt(digitalPinToInterrupt(BTN_1), BTN_1_Press, FALLING);
+    attachInterrupt(digitalPinToInterrupt(BTN_2), BTN_2_Press, FALLING);
 }
 
 String zp(uint8_t val){
@@ -131,7 +150,7 @@ inline void show_gps(){
         }
 
         S7.print(out + "\n");
-        Serial.println(out);
+        // Serial.println(out);
 
         _gps_cycle++;
         if(_gps_cycle >= GPS_CYCLES){
@@ -148,6 +167,31 @@ inline void show_gps(){
 
 void loop()
 {
+    if(_btn_1 > 0 && (millis() - _btn_1) > BTN_BOUNCE_TIME){
+        _btn_1 = 0;
+        if(digitalRead(BTN_1) == LOW){
+            _mode++;
+            if(_mode >= MODE_COUNT) _mode = 0;
+
+            // In case enter GPS mode.
+            // Always start with lat
+            _gps_view = 0;
+        }
+    }
+
+    if(_btn_2 > 0 && (millis() - _btn_2) > BTN_BOUNCE_TIME){
+        _btn_2 = 0;
+        if(digitalRead(BTN_2) == LOW){
+            _brightness += 2;
+            if(_brightness > BRIGHT_MAX)
+                _brightness = 2;
+
+            S7.write(CMD_BRIGHTNESS);
+            S7.write(_brightness);
+            S7.write('\n');
+        }
+    }
+
     if (GPS.newNMEAreceived()) {
         if (!GPS.parse(GPS.lastNMEA()))
             return;
