@@ -18,7 +18,7 @@ Adafruit_GPS GPS(&GPSSerial);
 // Set to 'true' if you want to debug and listen to the raw GPS sentences
 #define GPSECHO false
 
-long timer = millis();
+unsigned long timer = millis();
 
 time_t getGPSTime()
 {
@@ -165,6 +165,12 @@ inline void show_gps(){
     }
 }
 
+void show_timeout_set(){
+    S7.write(" t off - ");
+    S7.print(DISP_TIMEOUT);
+    S7.write("\n");
+}
+
 void loop()
 {
     //Handle the buttons
@@ -191,13 +197,20 @@ void loop()
         _btn_2 = 0;
         if(digitalRead(BTN_2) == LOW){
             if(_disp_on){
-                _brightness += 2;
-                if(_brightness > BRIGHT_MAX)
-                    _brightness = 2;
+                if(_mode == MODE_TIMEOUT){
+                    DISP_TIMEOUT += 10;
+                    if(DISP_TIMEOUT > 60) DISP_TIMEOUT = 0;
+                }
+                else{
+                    _brightness += 2;
+                    if(_brightness > BRIGHT_MAX)
+                        _brightness = 2;
 
-                S7.write(CMD_BRIGHTNESS);
-                S7.write(_brightness);
-                S7.write('\n');
+                    S7.write(CMD_BRIGHTNESS);
+                    S7.write(_brightness);
+                    S7.write('\n');
+                }
+
                 _disp_on_time = millis();
             }
             else{
@@ -230,8 +243,13 @@ void loop()
                 case MODE_EPOCH:
                     show_epoch_time();
                     break;
+                case MODE_TIMEOUT:
+                    show_timeout_set();
+                    break;
             }
-            if(timer > _disp_on_time + DISP_TIMEOUT){
+            if((_mode != MODE_TIMEOUT) &&
+               (DISP_TIMEOUT > 0) &&
+               (timer > _disp_on_time + DISP_TIMEOUT * 1000)){
                 _disp_on = false;
             }
         }

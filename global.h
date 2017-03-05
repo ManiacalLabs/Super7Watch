@@ -3,10 +3,11 @@
 #define CMD_BAUD_RATE  0x12
 #define CMD_FACTORY_RESET 0x13
 
-#define MODE_COUNT 3
-#define MODE_TIME 0
+#define MODE_COUNT 4
+#define MODE_EPOCH 0
 #define MODE_GPS  1
-#define MODE_EPOCH 2
+#define MODE_TIME 2
+#define MODE_TIMEOUT 3
 
 uint8_t _mode = MODE_EPOCH;
 
@@ -28,5 +29,5 @@ long _btn_2 = 0;
 uint8_t _brightness = BRIGHT_MAX;
 
 bool _disp_on = true;
-long _disp_on_time = 0;
-#define DISP_TIMEOUT 30000
+unsigned long _disp_on_time = 0;
+int DISP_TIMEOUT = 30;
