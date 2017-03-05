@@ -18,7 +18,7 @@ Adafruit_GPS GPS(&GPSSerial);
 // Set to 'true' if you want to debug and listen to the raw GPS sentences
 #define GPSECHO false
 
-uint32_t timer = millis();
+long timer = millis();
 
 time_t getGPSTime()
 {
@@ -167,28 +167,43 @@ inline void show_gps(){
 
 void loop()
 {
+    //Handle the buttons
     if(_btn_1 > 0 && (millis() - _btn_1) > BTN_BOUNCE_TIME){
         _btn_1 = 0;
         if(digitalRead(BTN_1) == LOW){
-            _mode++;
-            if(_mode >= MODE_COUNT) _mode = 0;
+            if(_disp_on){
+                _mode++;
+                if(_mode >= MODE_COUNT) _mode = 0;
 
-            // In case enter GPS mode.
-            // Always start with lat
-            _gps_view = 0;
+                // In case enter GPS mode.
+                // Always start with lat
+                _gps_view = 0;
+                _disp_on_time = millis();
+            }
+            else{
+                _disp_on = true;
+                _disp_on_time = millis();
+            }
         }
     }
 
     if(_btn_2 > 0 && (millis() - _btn_2) > BTN_BOUNCE_TIME){
         _btn_2 = 0;
         if(digitalRead(BTN_2) == LOW){
-            _brightness += 2;
-            if(_brightness > BRIGHT_MAX)
-                _brightness = 2;
+            if(_disp_on){
+                _brightness += 2;
+                if(_brightness > BRIGHT_MAX)
+                    _brightness = 2;
 
-            S7.write(CMD_BRIGHTNESS);
-            S7.write(_brightness);
-            S7.write('\n');
+                S7.write(CMD_BRIGHTNESS);
+                S7.write(_brightness);
+                S7.write('\n');
+                _disp_on_time = millis();
+            }
+            else{
+                _disp_on = true;
+                _disp_on_time = millis();
+            }
         }
     }
 
@@ -204,16 +219,25 @@ void loop()
     {
         timer = millis(); // reset the timer
 
-        switch (_mode) {
-            case MODE_TIME:
-                show_time();
-                break;
-            case MODE_GPS:
-                show_gps();
-                break;
-            case MODE_EPOCH:
-                show_epoch_time();
-                break;
+        if(_disp_on){
+            switch (_mode) {
+                case MODE_TIME:
+                    show_time();
+                    break;
+                case MODE_GPS:
+                    show_gps();
+                    break;
+                case MODE_EPOCH:
+                    show_epoch_time();
+                    break;
+            }
+            if(timer > _disp_on_time + DISP_TIMEOUT){
+                _disp_on = false;
+            }
+        }
+        else{
+            //clear the display
+            S7.write("\n");
         }
     }
 }

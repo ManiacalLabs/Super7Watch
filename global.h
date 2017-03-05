@@ -26,3 +26,7 @@ long _btn_2 = 0;
 
 #define BRIGHT_MAX 10
 uint8_t _brightness = BRIGHT_MAX;
+
+bool _disp_on = true;
+long _disp_on_time = 0;
+#define DISP_TIMEOUT 30000
