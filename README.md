@@ -1,5 +1,7 @@
 # Super7Watch
 
+Get your own Super 7 Seg kit here: http://maniacallabs.com/Super7Seg
+
 More details on YouTube: https://youtu.be/xsFK2gDSPDk
 
 Parts List:
